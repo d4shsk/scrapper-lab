@@ -151,74 +151,38 @@ python scraper_bs4.py
 
 После перезапуска ИИ агенту инструменты Puppeteer станут доступны ассистенту автоматически.
 
-### Пошаговая инструкция для работы через MCP
+### Промт для агента
 
-#### Шаг 1. Переход на первую страницу
-
-Дать ассистенту команду:
+Вместо пошагового взаимодействия отправьте агенту один полный промт — он самостоятельно пройдёт все шаги без уточняющих вопросов:
 
 ```
-Перейди на https://atlas.herzen.spb.ru/teachers?page=1 используя puppeteer
-```
+Используя puppeteer, выполни следующие шаги:
 
-Ассистент вызовет `puppeteer_navigate` с указанным URL.
+1. Обойди страницы https://atlas.herzen.spb.ru/teachers?page=1
+   по https://atlas.herzen.spb.ru/teachers?page=54.
+   На каждой странице выполни скрипт и собери ссылки на профили:
+   (() => {
+     return JSON.stringify(
+       Array.from(document.querySelectorAll("td a.text-blue-600[href*='/teachers/']"))
+         .map(a => ({ name: a.textContent.trim(), url: a.href }))
+     );
+   })()
 
-#### Шаг 2. Извлечение ссылок на профили
+2. Для каждой собранной ссылки перейди на страницу профиля
+   и выполни скрипт для извлечения контактов:
+   (() => {
+     const contacts = { email: "", phone: "" };
+     document.querySelectorAll("h1.text-m").forEach(el => {
+       const text = el.textContent.trim();
+       if (text.includes("@")) contacts.email = text;
+       else if (/^[\d\s\+\-\(\)\.]+$/.test(text) && text.length > 5) contacts.phone = text;
+     });
+     return JSON.stringify(contacts);
+   })()
 
-```
-Выполни в контексте страницы следующий код и верни результат:
-
-(() => {
-  const teachers = Array.from(
-    document.querySelectorAll("td a.text-blue-600[href*='/teachers/']")
-  ).map(a => ({
-    name: a.textContent.trim(),
-    url: a.href
-  }));
-  return JSON.stringify(teachers);
-})()
-```
-
-Ассистент вызовет `puppeteer_evaluate` и вернёт массив с именами и URL.
-
-#### Шаг 3. Цикл по всем 54 страницам
-
-Попросить ассистента повторить шаги 1–2 для каждой страницы:
-
-```
-Повтори для страниц со 2 по 54: перейди на страницу, выполни тот же скрипт,
-добавь результаты к общему списку.
-```
-
-#### Шаг 4. Извлечение контактов со страницы профиля
-
-Для каждого профиля:
-
-```
-Перейди на [URL профиля] и выполни:
-
-(() => {
-  const contacts = { email: "", phone: "" };
-  const h1Elements = document.querySelectorAll("h1.text-m");
-  h1Elements.forEach(el => {
-    const text = el.textContent.trim();
-    if (text.includes("@")) {
-      contacts.email = text;
-    } else if (/^[\d\s\+\-\(\)]+$/.test(text) && text.length > 5) {
-      contacts.phone = text;
-    }
-  });
-  return JSON.stringify(contacts);
-})()
-```
-
-#### Шаг 5. Формирование CSV
-
-Когда все данные собраны:
-
-```
-Сформируй CSV с заголовком "ФИО,Почта,Телефон"
-из собранного массива данных и верни файл.
+3. Собери все данные в массив {ФИО, Почта, Телефон}
+   и сохрани результат в файл teachers_puppeteer.csv
+   с заголовком: ФИО,Почта,Телефон
 ```
 
 ## Сравнение подходов
